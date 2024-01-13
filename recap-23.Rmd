@@ -1,0 +1,1171 @@
+---
+title: "2023 NFL Regular Season Recap"
+author: "Sam Burch"
+date: "1/13/2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+``` {r, include = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(nflreadr)
+
+
+pr_23 = read_csv("pr-23.csv")[, -1]
+
+pbp = read_csv("pbp-df-thru23")[, -1]
+
+pbp_23 = pbp |> filter(season == "2023")
+
+```
+
+Before the playoffs start let us look into how the 2023 teams performed. To do so, we will aggregate all the play-by-play data in nflfastR from 1999-2023. By doing this, we can see how these teams look historically as well as in 2023.
+
+
+# Rankings
+
+``` {r, echo = FALSE, cache = TRUE, message = FALSE, warning = FALSE}
+
+ggplot(pr_23, aes(y = reorder(team, ranking), x = ranking)) +
+  labs(
+    title = 'NFL Rankings (2023 Regular Season)',
+    subtitle = "based on EPA/play  |  60-40 split for offense-defense  |  assumes 20-point spread from worst and best team",
+    caption = 'By: Sam Burch  |  Data @nflfastR',
+    x = "Projected Spread against an Average Team"
+  ) +
+  theme(
+    plot.subtitle = element_text(size = 8, hjust = .5),
+    plot.title = element_text(hjust = 0.5),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.x = element_line(color = "lightgray", size = 0.5, linetype = 2),
+    panel.grid.minor.x = element_blank(),
+    panel.background = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()) +
+  scale_x_continuous(breaks = seq(-10, 15, 1)) +
+  geom_col(aes(color = team, fill = team), alpha = .8) +
+  nflplotR::scale_fill_nfl(alpha = .3) +
+  nflplotR::scale_color_nfl(type = "secondary") +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .03, alpha = .8)
+
+```
+
+Strictly based on EPA per play, we can see how good each team is overall. Because of the randomness and instability of defensive play, we give a slight advantage towards offense EPA per play. Maybe a 20-point spread is a little high, since NFL market rankings (inpredictable.com) had it as high as about 18-points this season. However, because it is a full season, we pushed this up slightly.
+
+The 49ers are the best team, followed shortly after by the Cowboys and the Ravens. The 49ers had -- by far -- the best offense in football due to the likes of Purdy, McCaffrey, Aiyuk, Samuel, Kittle, and Shanahan. The Cowboys and Ravens were more balanced as they both had good offenses (slight lean towards Cowboys) and good defenses (lean towards Ravens). Dallas should probably be a little lower here because their defensive success rate was actually below average.
+
+Jumping to the bottom of the league, the Panthers and Commanders bottomed out this year. Carolina's offense was easily bottom five, while Washington's was just below average. The killer for Washington was their defense -- worst in EPA per play allowed. Carolina's defense was below average, but it was obviously the struggles of their offense that led them to the worst record in the league. 
+
+The Bills and Dolphins come in at 4th and 5th respectively due to their great offenses. The Chiefs are still a top six team, but primarily because of their good defense. Due to their stupidly easy strength of schedule, 7th is probably too high for the Saints, although their defense was top five in EPA per play allowed and success rate allowed with an average offense. The Saints were at least an average team and perhaps the biggest snub from the playoffs. Meanwhile, the Jaguars were "snubbed" even though they were strictly an average team. Speaking of average teams, the Eagles still have a good offense (easily top ten) but their defense is awful. Lastly, the Jets had arguably the best defense and easily the worst offense. They definitely should have brought someone else in to compete with Zach Wilson after the Rodgers injury -- just ask the Browns.
+
+
+\pagebreak
+
+
+# Offenses
+
+Let's now dive into the offensive performances...
+
+## Overall
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = mean_epa, y = success_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = mean_epa, y0 = success_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / play',
+       y = 'Success Rate',
+       title = "NFL Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The 49ers were historically great, while the Jets were historically bad. The 49ers were 16th (out of 797 teams, since 1999) in EPA per play and 4th in success rate! Truly one of the best offenses of all time. On the other hand, the Jets were 7th worst in EPA per play and 17th worst in success rate. Keep in mind, this team had a top receiver (Garrett Wilson) and a top running back (Breece Hall) as well.
+
+There is not much disparity between EPA and success rate, but one team sticks out. The Bucs had a slightly better EPA per play than success rate. We will look into why this is later, because this doesn't necessarily mean they were lucky.
+
+
+\pagebreak
+
+## Pass vs. Rush
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = pass_epa, y = rush_epa)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa, y0 = rush_epa)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass',
+       y = 'EPA / Rush',
+       title = "Pass vs. Rush EPA (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The 49ers are still in their own tier here, having the best passing and rushing offense.
+
+The Chargers had the 13th worst EPA per rush, while their passing offense was average.
+
+There were six teams that had a better EPA per play rushing than passing. They were (in order of difference) the Patriots, Cardinals, Jets, Browns, Bears, and Panthers. All these teams need to see how they can upgrade their passing game over the offseason.
+
+\pagebreak
+
+
+## Pass
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = pass_epa, y = pass_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa, y0 = pass_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass',
+       y = 'Passing Success Rate',
+       title = "Passing Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The stability of passing offenses is clear here, with their being almost no discrepancy. 
+
+Keep in mind, the Falcons didn't have an awful passing offense, as it may have seemed.
+
+Love led the Packers to a top five EPA per pass. The Packers offense was slightly worse success rate wise, but a good QB with good weapons and a great head coach means well for their future success.
+
+Who would've thought the Bengals, Chiefs, and Chargers would be average passing offenses heading into the year. At least the Bengals have the injury excuse for Burrow.
+
+It's time for the Bears to move on from Fields. Another below average passing attack, even with Moore.
+
+\pagebreak
+
+## Rush
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = rush_epa, y = rush_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = rush_epa, y0 = rush_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Rush',
+       y = 'Rushing Success Rate',
+       title = "Rushing Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The disparity in stability is clear historically.
+
+The Falcons had a lot of hype for their rushing offense heading into the season. However, their rushing offense was bad, while their passing offense did just fine.
+
+The Vikings had a 40.0% success rate rushing, while the Cardinals were at 40.3%. Although this is the case, their efficiency on those rushes was -.16 and -.01 respectively.
+
+The best rushing teams were the 49ers, Bills, and Ravens. The Chargers (on the other hand) were in their own tier of bad.
+
+
+\pagebreak
+
+## By Down
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ed_epa, y = ld_epa)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa, y0 = ld_epa)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Early Down',
+       y = 'Late Down',
+       title = "EPA / Play by Down (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Early down is typically more stable than late down play. Thus, performing well on early downs is preferred for stability. Although, late down efficiency has the biggest swings, so performing well on such can lead to many wins.
+
+Teams that are a little lucky include the Cowboys, Eagles, and Bucs. This is concerning for the Cowboys, who have one of the best offenses in the league. The Eagles are helped a lot because of the tush push. Meanwhile, the Bucs have a higher EPA per play than success rate overall. This discrepancy by down suggests they have been lucky this year.
+
+A team that is unlucky is Seattle. They are 4th on early down EPA (in 2023) but 21st on late downs. Also, the Patriots are a little unlucky, although they are bad. Pats are bad on early down efficiency this season, but are awful on late down efficiency -- 7th worst since 1999. A new QB and some better luck will help New England bounce back next season.
+
+\pagebreak
+
+## Early Down
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ed_epa, y = ed_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa, y0 = ed_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play',
+       y = 'Success Rate',
+       title = "Early Down Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+A consistent theme on offense: 49ers = good & Jets = bad.
+
+Chiefs are average... oh how the mighty have fallen.
+
+Another point to the Bucs being lucky: below average efficiency and third worst success rate on early downs.
+
+
+\pagebreak
+
+## Late Down
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ld_epa, y = ld_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ld_epa, y0 = ld_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play',
+       y = 'Success Rate',
+       title = "Late Down Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Patriots are not only 7th worst efficiency-wise on late downs, but also have the 15th worst success rate. Jets also have a bad late down success rate (25th).
+
+Bills have a good late down efficiency, but a great late down success rate.
+
+Bucs are 3rd on late down efficiency, but only 9th on late down success rate.
+
+\pagebreak
+
+## Explosive Plays vs TOs
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = exp_play, y = to_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = exp_play, y0 = to_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Explosive Play Rate',
+       y = 'TO Rate',
+       title = "Explosive Play vs. Turnover Rate (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  exp play = 10+ rush OR 20+ pass  |  turnover = int, fumble (recovered or lost), OR sack",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 6),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Explosive plays are defined as a rush at / over 10 yards or a pass at / over 20 yards. For turnovers, we included sacks here, as they are truly awful for an offense. Note: sacks aren't as bad, but they are still very bad. Also, we include recovered fumbles here, as attributing some of the after-fumble play to luck.
+
+By comparing both explosive play rate and turnover rate, we can see who is good / bad at creating huge plays for their offense and who is good / bad at limiting mistakes. There is a slight positive correlation here, as having more explosive plays means there are less plays for there to be turnovers on (and vice versa).
+
+The 49ers are the most explosive offense, with a rate of 13.8% since 1999! Whether it be a huge McCaffrey run, deep pass, or a short yard pass turned into a big gain, the 49ers are an incredibly dangerous offense. 
+
+On the other hand, the Pats have the second worst explosive play rate at 5.5%. The Raiders, Jets, and Panthers were also really bad at 11th, 23rd, and 28th worst respectively. 
+
+The Giants had the 4th worst turnover rate at 10%, mainly due to their sacks. Notice the Commanders are also bad here; another team that took a lot of sacks.
+
+The Lions and Dolphins were also (unsurprisingly) very explosive this year. Although, it is not necessary to be explosive to be a good offense -- Bills or Cowboys.
+
+
+
+\pagebreak
+
+# Defenses
+
+## Overall
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = mean_epa_allowed, y = success_rate_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = mean_epa_allowed, y0 = success_rate_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / play Allowed',
+       y = 'Success Rate Allowed',
+       title = "NFL Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The Browns defense was historically great this season. They had the 18th best EPA per play allowed and the 15th best success rate allowed. Jets and Ravens were next up finishing 37th in success rate allowed and EPA per play allowed respectively.
+
+The Cardinals finished 35th worst in success rate allowed, which is one spot better than the 22' Cardinals (34th worst).
+
+The Cowboys got a little lucky on defense, finishing fourth in EPA per play allowed, but 21st in success rate allowed.
+
+Some good defenses from last year that have fallen off are the Eagles, Commanders, and Bengals. On the other hand, the Falcons, Bears, and Raiders all bounced back after being bad last year.
+
+
+
+\pagebreak
+
+## Pass vs. Rush
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = pass_epa_allowed, y = rush_epa_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa_allowed, y0 = rush_epa_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass Allowed',
+       y = 'EPA / Rush Allowed',
+       title = "Pass vs. Rush EPA Allowed (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Falcons had a good run defense, while the Panthers were poor here.
+
+Browns and Ravens pass defenses were both elite, while the Commanders and Cardinals were both bad.
+
+A few teams had better efficiency against the pass than the run -- the Browns, Chiefs, Ravens, and 49ers. Note all four of these teams made the playoffs.
+
+
+\pagebreak
+
+
+## Pass
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = pass_epa_allowed, y = pass_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa_allowed, y0 = pass_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass Allowed',
+       y = 'Passing Success Rate Allowed',
+       title = "Passing Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Browns had the 11th best EPA per pass allowed and the 4th best passing success rate allowed. This makes them arguably a top-5 pass defense since 1999!
+
+The Jets, Chiefs, and Ravens all had really good pass defenses too.
+
+The Cardinals had the 38th worst passing success rate allowed.
+
+The Falcons had a better success rate than EPA per pass, so they were a little unlucky.
+
+
+\pagebreak
+
+
+## Rush
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = rush_epa_allowed, y = rush_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = rush_epa_allowed, y0 = rush_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Rush Allowed',
+       y = 'Rushing Success Rate Allowed',
+       title = "Rushing Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+
+The Cowboys had the worst rushing success rate allowed, but were 9th best in EPA per rush allowed. If they run into a top rushing team in the playoffs, this may cause trouble for them.
+
+Many teams had good, not great rush defense. Among them are the Pats, Texans, and Saints.
+
+The Panthers had the worst EPA per rush allowed, but were 26th best in success rate. This isn't the biggest discrepancy, but one to certainly note.
+
+
+\pagebreak
+
+
+## By Down
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ed_epa_allowed, y = ld_epa_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa_allowed, y0 = ld_epa_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Early Down',
+       y = 'Late Down',
+       title = "EPA / Play Allowed by Down (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The Panthers and Broncos were good on early downs, but bad on late downs. This means they were a little unlucky, as early down performance is more stable. The Bears and Raiders were good on on late downs and bad on early downs on the other hand.
+
+The Jets were best on early down efficiency -- 13th best since 1999 -- but 22nd on late down efficiency.
+
+Late downs killed two bird with one stone (Seahawks and Eagles) and helped the other two birds (Ravens and Falcons).
+
+
+\pagebreak
+
+
+## Early Down
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ed_epa_allowed, y = ed_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa_allowed, y0 = ed_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play Allowed',
+       y = 'Success Rate Allowed',
+       title = "Early Down Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The Jets and Browns were amazing on early downs. On top of being 13th in early down efficiency, the Jets were 26th in early down success rate allowed. The Browns were 23rd and 28th respectively. 
+
+The Raiders and Cowboys were slightly lucky, having better efficiency than their success rates. Meanwhile, Panthers and Falcons were slightly unlucky.
+
+
+
+\pagebreak
+
+
+## Late Down
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = ld_epa_allowed, y = ld_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ld_epa_allowed, y0 = ld_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play Allowed',
+       y = 'Success Rate Allowed',
+       title = "Late Down Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+The Browns being great on late downs too led them to having the best defense in the league. They had the 17th best late down success rate allowed.
+
+The Cardinals, Eagles, and Seahawks were 19th, 29th, and 41st worst in success rate allowed.
+
+The Panthers were slightly lucky and the Jets were slightly unlucky.
+
+For those curious, the huge outlier in the upper right is the 2019 Patriots.
+
+
+\pagebreak
+
+
+## Explosive Plays vs TOs
+
+``` {r, echo = FALSE, cache = TRUE}
+
+ggplot(pbp, aes(x = exp_play_allowed, y = to_forced_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = exp_play_allowed, y0 = to_forced_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Explosive Play Allowed Rate',
+       y = 'Forced TO Rate',
+       title = "Explosive Play Allowed vs. Forced Turnover Rate (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  exp play = 10+ rush OR 20+ pass  |  turnover = int, fumble (recovered or lost), OR sack",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 6),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+Patriots had the least explosive plays allowed, while the Bengals had the most.
+
+The Bills forced the most turnovers, while the Panthers forced the least -- 21st worst since 1999.
+
+The best of both worlds goes to the Chiefs, Dolphins, 49ers, Ravens, and Jets. The worst goes to the Cardinals.
+
+
+\pagebreak
+
+# Code
+
+## Data Processing
+
+``` {r, eval = FALSE}
+
+pbp = load_pbp(1999:2023)
+
+pbp_23 = pbp |> filter(season == "2023")
+
+offs = pbp |>
+  filter(!is.na(yards_gained), (pass == 1 | rush == 1), season_type == "REG", !is.na(posteam)) |>
+  group_by(season, posteam) |>
+  summarise(mean_epa = mean(epa, na.rm = TRUE),
+            success_rate = mean(success, na.rm = TRUE),
+            pass_epa = mean(epa[pass == 1], na.rm = TRUE),
+            pass_sr = mean(success[pass == 1], na.rm = TRUE),
+            rush_epa = mean(epa[rush == 1], na.rm = TRUE),
+            rush_sr = mean(success[rush == 1], na.rm = TRUE),
+            ed_epa = mean(epa[down == 1 | down == 2], na.rm = TRUE),
+            ed_sr = mean(success[down == 1 | down == 2], na.rm = TRUE),
+            ld_epa = mean(epa[down == 3 | down == 4], na.rm = TRUE),
+            ld_sr = mean(success[down == 3 | down == 4], na.rm = TRUE),
+            ypa = mean(yards_gained),
+            plays_off = n(),
+            exp_play = sum((pass == 1 & yards_gained >= 20) | (rush == 1 & yards_gained >= 10)) / plays_off,
+            to_rate = sum(interception == 1 | fumble == 1 | sack == 1) / plays_off,
+            .groups = "drop") |>
+  arrange(-mean_epa) |>
+  mutate(mean_epa_pct = pnorm(scale(mean_epa))*100,
+         success_rate_pct = pnorm(scale(success_rate))*100,
+         pass_epa_pct = pnorm(scale(pass_epa))*100,
+         pass_sr_pct = pnorm(scale(pass_sr))*100,
+         rush_epa_pct = pnorm(scale(rush_epa))*100,
+         rush_sr_pct = pnorm(scale(rush_sr))*100,
+         ed_epa_pct = pnorm(scale(ed_epa))*100,
+         ed_sr_pct = pnorm(scale(ed_sr))*100,
+         ld_epa_pct = pnorm(scale(ld_epa))*100,
+         ld_sr_pct = pnorm(scale(ld_sr))*100,
+         exp_play_pct = pnorm(scale(exp_play))*100,
+         to_rate_pct = pnorm(scale(to_rate))*100,
+         ypa_pct = pnorm(scale(ypa))*100,
+         plays_off_pct = pnorm(scale(plays_off))*100) |>
+  rename(team = posteam)
+
+
+
+defs = pbp |>
+  filter(!is.na(yards_gained), (pass == 1 | rush == 1), season_type == "REG", !is.na(defteam)) |>
+  group_by(season, defteam) |>
+  summarise(mean_epa_allowed = mean(epa, na.rm = TRUE),
+            success_rate_allowed = mean(success, na.rm = TRUE),
+            pass_epa_allowed = mean(epa[pass == 1], na.rm = TRUE),
+            pass_sr_allowed = mean(success[pass == 1], na.rm = TRUE),
+            rush_epa_allowed = mean(epa[rush == 1], na.rm = TRUE),
+            rush_sr_allowed = mean(success[rush == 1], na.rm = TRUE),
+            ed_epa_allowed = mean(epa[down == 1 | down == 2], na.rm = TRUE),
+            ed_sr_allowed = mean(success[down == 1 | down == 2], na.rm = TRUE),
+            ld_epa_allowed = mean(epa[down == 3 | down == 4], na.rm = TRUE),
+            ld_sr_allowed = mean(success[down == 3 | down == 4], na.rm = TRUE),
+            ypa_allowed = mean(yards_gained),
+            plays_def = n(),
+            exp_play_allowed = sum((pass == 1 & yards_gained >= 20) | (rush == 1 & yards_gained >= 10)) / plays_def,
+            to_forced_rate = sum(interception == 1 | fumble == 1 | sack == 1) / plays_def,
+            .groups = "drop") |>
+  arrange(-mean_epa_allowed) |>
+  mutate(mean_epa_allowed_pct = pnorm(scale(mean_epa_allowed))*100,
+         success_rate_allowed_pct = pnorm(scale(success_rate_allowed))*100,
+         pass_epa_allowed_pct = pnorm(scale(pass_epa_allowed))*100,
+         pass_sr_allowed_pct = pnorm(scale(pass_sr_allowed))*100,
+         rush_epa_allowed_pct = pnorm(scale(rush_epa_allowed))*100,
+         rush_sr_allowed_pct = pnorm(scale(rush_sr_allowed))*100,
+         ed_epa_allowed_pct = pnorm(scale(ed_epa_allowed))*100,
+         ed_sr_allowed_pct = pnorm(scale(ed_sr_allowed))*100,
+         ld_epa_allowed_pct = pnorm(scale(ld_epa_allowed))*100,
+         ld_sr_allowed_pct = pnorm(scale(ld_sr_allowed))*100,
+         exp_play_allowed_pct = pnorm(scale(exp_play_allowed))*100,
+         to_forced_rate_pct = pnorm(scale(to_forced_rate))*100,
+         ypa_allowed_pct = pnorm(scale(ypa_allowed))*100,
+         plays_def_pct = pnorm(scale(plays_def))*100) |>
+  rename(team = defteam)
+
+
+pbp = offs |>
+  left_join(defs, by = c("season", "team")) |>
+  mutate(tot_plays = plays_off + plays_def)
+
+
+```
+
+\pagebreak
+
+## Plots:
+
+### Power Rankings
+
+``` {r, eval = FALSE}
+
+z_score = function(x, values) {
+  mu = mean(values)
+  sig = sd(values)
+  return((x - mu) / sig)
+}
+
+# Offense
+off = pbp_23 |> 
+  filter(!is.na(yards_gained), (pass == 1 | rush == 1)) |> 
+  group_by(posteam) |> 
+  summarise(off_epa = mean(epa),
+            off_sr = mean(success),
+            off_ypa = mean(yards_gained),
+            off_plays = n()) |> 
+  rename(team = posteam)
+off
+
+
+# Defense
+def = pbp_23 |> 
+  filter(!is.na(yards_gained), (pass == 1 | rush == 1)) |> 
+  group_by(defteam) |> 
+  summarise(def_epa = mean(epa),
+            def_sr = mean(success),
+            def_ypa = mean(yards_gained),
+            def_plays = n()) |> 
+  rename(team = defteam)
+def
+
+
+# Joining Off & Def
+pre_pr1 = off |>
+  left_join(def, by = "team") |> 
+  mutate(plays = off_plays + def_plays)
+pre_pr1
+
+
+# Standardizing
+pre_pr2 = pre_pr1 |> 
+  select(-c(off_ypa, def_ypa)) |> 
+  mutate(off_epa = z_score(off_epa, off_epa),
+         off_sr = z_score(off_sr, off_sr),
+         def_epa = -z_score(def_epa, def_epa),
+         def_sr = -z_score(def_sr, def_sr))
+pre_pr2
+
+
+# NFL Power Rankings (2023)
+pr_23 = pre_pr2 |> 
+  # OFF / DEF: 60-40
+  mutate(almost = .6*off_epa + .4*def_epa) |> 
+  # 20-point Spread
+  mutate(ranking = z_score(almost, almost) * 
+           (20 / (max(z_score(almost, almost)) - min(z_score(almost, almost))))) |> 
+  select(-almost) |> 
+  select(team, ranking, everything()) |> 
+  arrange(-ranking)
+
+ggplot(pr_23, aes(y = reorder(team, ranking), x = ranking)) +
+  labs(
+    title = 'NFL Rankings (2023 Regular Season)',
+    subtitle = "based on EPA/play  |  60-40 split for offense-defense  |  assumes 20-point spread from worst and best team",
+    caption = 'By: Sam Burch  |  Data @nflfastR',
+    x = "Projected Spread against an Average Team"
+  ) +
+  theme(
+    plot.subtitle = element_text(size = 8, hjust = .5),
+    plot.title = element_text(hjust = 0.5),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.x = element_line(color = "lightgray", size = 0.5, linetype = 2),
+    panel.grid.minor.x = element_blank(),
+    panel.background = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()) +
+  scale_x_continuous(breaks = seq(-10, 15, 1)) +
+  geom_col(aes(color = team, fill = team), alpha = .8) +
+  nflplotR::scale_fill_nfl(alpha = .3) +
+  nflplotR::scale_color_nfl(type = "secondary") +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .03, alpha = .8)
+
+```
+
+### Overall
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = mean_epa, y = success_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = mean_epa, y0 = success_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / play',
+       y = 'Success Rate',
+       title = "NFL Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = mean_epa_allowed, y = success_rate_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = mean_epa_allowed, y0 = success_rate_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / play Allowed',
+       y = 'Success Rate Allowed',
+       title = "NFL Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Pass vs. Rush
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = pass_epa, y = rush_epa)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa, y0 = rush_epa)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass',
+       y = 'EPA / Rush',
+       title = "Pass vs. Rush EPA (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = pass_epa_allowed, y = rush_epa_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa_allowed, y0 = rush_epa_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass Allowed',
+       y = 'EPA / Rush Allowed',
+       title = "Pass vs. Rush EPA Allowed (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Pass
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = pass_epa, y = pass_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa, y0 = pass_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass',
+       y = 'Passing Success Rate',
+       title = "Passing Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = pass_epa_allowed, y = pass_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = pass_epa_allowed, y0 = pass_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Pass Allowed',
+       y = 'Passing Success Rate Allowed',
+       title = "Passing Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Rush
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = rush_epa, y = rush_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = rush_epa, y0 = rush_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Rush',
+       y = 'Rushing Success Rate',
+       title = "Rushing Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = rush_epa_allowed, y = rush_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = rush_epa_allowed, y0 = rush_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Rush Allowed',
+       y = 'Rushing Success Rate Allowed',
+       title = "Rushing Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### By Down
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = ed_epa, y = ld_epa)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa, y0 = ld_epa)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Early Down',
+       y = 'Late Down',
+       title = "EPA / Play by Down (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = ed_epa_allowed, y = ld_epa_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa_allowed, y0 = ld_epa_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Early Down',
+       y = 'Late Down',
+       title = "EPA / Play Allowed by Down (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Early Down
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = ed_epa, y = ed_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa, y0 = ed_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play',
+       y = 'Success Rate',
+       title = "Early Down Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = ed_epa_allowed, y = ed_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ed_epa_allowed, y0 = ed_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play Allowed',
+       y = 'Success Rate Allowed',
+       title = "Early Down Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Late Down
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = ld_epa, y = ld_sr)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ld_epa, y0 = ld_sr)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play',
+       y = 'Success Rate',
+       title = "Late Down Offensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = ld_epa_allowed, y = ld_sr_allowed)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = ld_epa_allowed, y0 = ld_sr_allowed)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'EPA / Play Allowed',
+       y = 'Success Rate Allowed',
+       title = "Late Down Defensive Performances (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  early down = 1st or 2nd  |  late down = 3rd or 4th",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 8),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+### Explosive Plays vs TOs
+
+``` {r, eval = FALSE}
+
+ggplot(pbp, aes(x = exp_play, y = to_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_y_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = exp_play, y0 = to_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Explosive Play Rate',
+       y = 'TO Rate',
+       title = "Explosive Play vs. Turnover Rate (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  exp play = 10+ rush OR 20+ pass  |  turnover = int, fumble (recovered or lost), OR sack",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 6),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+ggplot(pbp, aes(x = exp_play_allowed, y = to_forced_rate)) +
+  geom_point(color = "grey80", data = pbp |> filter(season != "2023")) +
+  scale_x_reverse() +
+  stat_smooth(formula = y ~ x, method = 'lm', geom = 'line', se = FALSE, color='grey') +
+  nflplotR::geom_mean_lines(aes(x0 = exp_play_allowed, y0 = to_forced_rate)) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = team), width = .07, alpha = .7, data = pbp_23) +
+  labs(x = 'Explosive Play Allowed Rate',
+       y = 'Forced TO Rate',
+       title = "Explosive Play Allowed vs. Forced Turnover Rate (2023 Regular Season)",
+       subtitle = "grey = seasons 1999-2022  |  exp play = 10+ rush OR 20+ pass  |  turnover = int, fumble (recovered or lost), OR sack",
+       caption = 'By: Sam Burch  |  Data @nflfastR') +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 6),
+    axis.line = element_line(color = "black", size = 0.5),
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+```
+
+
+
